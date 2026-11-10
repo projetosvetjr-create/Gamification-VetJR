@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Gamification VetJr</title>
+<meta name="theme-color" content="#008753">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gamification">
+<style>
+  html,body{margin:0;height:100%;background:linear-gradient(160deg,#EEF7F1,#E3F4EA);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#16211C}
+  .splash{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;box-sizing:border-box;text-align:center}
+  .splash img{width:96px;height:96px;border-radius:24px;box-shadow:0 8px 24px rgba(0,90,56,.2)}
+  .splash h1{margin:0;font-size:24px;letter-spacing:-.01em}
+  .splash p{margin:0;color:#5A6A61;font-size:15px;max-width:34ch}
+  .splash button{border:0;border-radius:12px;padding:12px 20px;font-size:15px;font-weight:700;color:#fff;background:linear-gradient(120deg,#00B36B,#008753 45%,#005A38);cursor:pointer}
+  .dots{display:flex;gap:6px}.dots i{width:8px;height:8px;border-radius:50%;background:#008753;opacity:.3;animation:p 1s infinite}
+  .dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+  @keyframes p{50%{opacity:1}}
+</style>
+<script src="config.js"></script>
+</head>
+<body>
+<div class="splash" id="splash">
+  <img src="icon-192.png" alt="">
+  <h1>Gamification VetJr</h1>
+  <div class="dots" id="dots"><i></i><i></i><i></i></div>
+  <p id="msg">Abrindo…</p>
+</div>
+<script>
+(function(){
+  var URL_APP = window.APP_URL || "";
+  var CHAVE = "gvjapp-html";
+  var ls = { get:function(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }, set:function(k,v){ try { localStorage.setItem(k,v); } catch(e){} } };
+  function msg(t, botao){
+    document.getElementById("msg").textContent = t;
+    document.getElementById("dots").style.display = botao ? "none" : "";
+    if(botao && !document.getElementById("tentar")){
+      var b = document.createElement("button"); b.id = "tentar"; b.textContent = "Tentar de novo";
+      b.onclick = function(){ location.reload(); }; document.getElementById("splash").appendChild(b);
+    }
+  }
+  if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(function(){}); }
+
+  // Faz o app conversar com o Apps Script pela internet (no lugar do google.script.run)
+  function ponte(url){
+    return "<script>(function(){var U=" + JSON.stringify(url) + ";" +
+      "function chamar(fn,args){var c=new AbortController();var tm=setTimeout(function(){c.abort();},30000);" +
+      "return fetch(U,{method:'POST',body:JSON.stringify({fn:fn,args:args}),redirect:'follow',signal:c.signal})" +
+      ".then(function(r){if(!r.ok)throw new Error('NetworkError: '+r.status);return r.text();})" +
+      ".then(function(txt){clearTimeout(tm);var j;try{j=JSON.parse(txt);}catch(x){throw new Error('NetworkError: resposta inválida');}if(!j.ok)throw new Error(j.erro);return j.r;})" +
+      ".catch(function(e){clearTimeout(tm);if(e&&e.name==='AbortError')throw new Error('NetworkError: sem resposta');throw e;});}" +
+      "function run(h){return new Proxy({},{get:function(_,n){" +
+      "if(n==='withSuccessHandler')return function(f){h.s=f;return run(h);};" +
+      "if(n==='withFailureHandler')return function(f){h.f=f;return run(h);};" +
+      "return function(){var a=[].slice.call(arguments);chamar(n,a).then(function(r){h.s&&h.s(r);},function(e){h.f&&h.f(e);});};}});}" +
+      "window.google={script:{get run(){return run({});}}};" +
+      "var aberto=Date.now();document.addEventListener('visibilitychange',function(){" +
+      "if(document.hidden||Date.now()-aberto<1800000)return;aberto=Date.now();" +
+      "fetch(U+'?app=1&t='+Date.now()).then(function(r){return r.text();}).then(function(h){" +
+      "if(h.indexOf('Gamification')<0)return;var velho=null;try{velho=localStorage.getItem('gvjapp-html');}catch(e){}" +
+      "if(h!==velho){try{localStorage.setItem('gvjapp-html',h);}catch(e){}" +
+      "var fila=[];try{fila=JSON.parse(localStorage.getItem('gvj-fila')||'[]');}catch(e){}if(!fila.length)location.reload();}}).catch(function(){});});" +
+      "})();<\/script>";
+  }
+  function abrir(html){
+    var i = html.indexOf("<head>");
+    var pronto = i >= 0 ? html.slice(0, i + 6) + ponte(URL_APP) + html.slice(i + 6) : ponte(URL_APP) + html;
+    pronto = pronto.replace('<base target="_top">', "");
+    pronto = pronto.replace("<head>", '<head><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#008753"><link rel="apple-touch-icon" href="apple-touch-icon.png">');
+    document.open(); document.write(pronto); document.close();
+  }
+  function baixar(ms){
+    return new Promise(function(ok, falha){
+      var c = new AbortController(), t = setTimeout(function(){ c.abort(); }, ms);
+      fetch(URL_APP + "?app=1&t=" + Date.now(), { redirect: "follow", signal: c.signal })
+        .then(function(r){ return r.text(); })
+        .then(function(h){ clearTimeout(t); if(h.indexOf("Gamification") < 0 || h.indexOf("<html") < 0) throw new Error("resposta inesperada"); ok(h); })
+        .catch(function(e){ clearTimeout(t); falha(e); });
+    });
+  }
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(URL_APP)){ msg("O link do Apps Script no arquivo config.js está faltando ou errado.", true); return; }
+  var guardado = ls.get(CHAVE), usou = false;
+  var rede = baixar(guardado ? 15000 : 30000).then(function(h){ if(h !== guardado) ls.set(CHAVE, h); return h; });
+  if(guardado){
+    var espera = setTimeout(function(){ if(!usou){ usou = true; abrir(guardado); } }, 2500);
+    rede.then(function(h){ if(!usou){ usou = true; clearTimeout(espera); abrir(h); } }, function(){ if(!usou){ usou = true; clearTimeout(espera); abrir(guardado); } });
+  } else {
+    msg("Baixando o aplicativo pela primeira vez…");
+    rede.then(abrir, function(){ msg("Não consegui baixar o aplicativo. Na primeira vez ele precisa de internet. Confira a conexão e tente de novo.", true); });
+  }
+})();
+</script>
+</body>
+</html>
